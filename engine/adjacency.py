@@ -18,6 +18,7 @@ import graphlib as gl
 import sys
 
 from scipy import sparse
+from typing import Tuple
 import zarr
 
 pkg = sys.argv[1]
@@ -29,51 +30,70 @@ out_path = sys.argv[3]
 fp = gpd.read_file(pkg, layer='flowpaths').set_index('id')
 network = gpd.read_file(pkg, layer='network').set_index('id')
 
-# Toposort for the win
-sorter = gl.TopologicalSorter()
+def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> Tuple[np.ndarray, list[str]]:
+    """
+    Create a lower triangular adjacency matrix from flowpaths and network dataframes.
+    
+    Parameters
+    ----------
+    fp : gpd.GeoDataFrame
+        Flowpaths dataframe with 'toid' column indicating downstream nexus IDs.
+    network : gpd.GeoDataFrame
+        Network dataframe with 'toid' column indicating downstream flowpath IDs.
+    
+    Returns
+    -------
+    np.ndarray
+        Lower triangular adjacency matrix.
+    """
+    
+    # Toposort for the win
+    sorter = gl.TopologicalSorter()
 
-for id in fp.index:
-    nex = fp.loc[id]['toid']
-    try:
-        ds_wb = network.loc[nex]['toid']
-    except:
-        print("Terminal nex???", nex)
-        continue
-    # Add a node to the sorter, ds_wb is the node, id is its predesessor
-    sorter.add(ds_wb, id)
+    for id in fp.index:
+        nex = fp.loc[id]['toid']
+        try:
+            ds_wb = network.loc[nex]['toid']
+        except:
+            print("Terminal nex???", nex)
+            continue
+        # Add a node to the sorter, ds_wb is the node, id is its predesessor
+        sorter.add(ds_wb, id)
 
-# There are possibly more than one correct topological sort orders
-# Just grab one and go...
-ts_order = list(sorter.static_order())
+    # There are possibly more than one correct topological sort orders
+    # Just grab one and go...
+    ts_order = list(sorter.static_order())
 
-# Reindex the flowpaths based on the topo order
-fp = fp.reindex(ts_order)
+    # Reindex the flowpaths based on the topo order
+    fp = fp.reindex(ts_order)
 
-# Create matrix, "indexed" the same as the re-ordered fp dataframe
-matrix = np.zeros( (len(fp), len(fp) ) )
+    # Create matrix, "indexed" the same as the re-ordered fp dataframe
+    matrix = np.zeros( (len(fp), len(fp) ) )
 
-for wb in ts_order:
-    nex = fp.loc[wb]['toid']
-    if isinstance(nex, float) and np.isnan(nex):
-        continue
-    # Use the network to find wb -> wb topology
-    try:
-        ds_wb = network.loc[nex]['toid']
-    except KeyError:
-        print("Terminal nex???", nex)
-        continue
-    # Find the inicies of the adajcent flowpaths
-    idx = fp.index.get_loc(wb)
-    idxx = fp.index.get_loc(ds_wb)
-    fp['matrix_idxx'] = idxx
-    fp['matrix_idx'] = idx
-    # print(wb, " -> ", nex, " -> ", ds_wb)
-    # Set the matrix value
-    matrix[idxx][idx] = 1
+    for wb in ts_order:
+        nex = fp.loc[wb]['toid']
+        if isinstance(nex, float) and np.isnan(nex):
+            continue
+        # Use the network to find wb -> wb topology
+        try:
+            ds_wb = network.loc[nex]['toid']
+        except KeyError:
+            print("Terminal nex???", nex)
+            continue
+        # Find the inicies of the adajcent flowpaths
+        idx = fp.index.get_loc(wb)
+        idxx = fp.index.get_loc(ds_wb)
+        fp['matrix_idxx'] = idxx
+        fp['matrix_idx'] = idx
+        # print(wb, " -> ", nex, " -> ", ds_wb)
+        # Set the matrix value
+        matrix[idxx][idx] = 1
 
-# Ensure, within tolerance, that this is a lower triangular matrix
-assert np.allclose(matrix, np.tril(matrix))
+    # Ensure, within tolerance, that this is a lower triangular matrix
+    assert np.allclose(matrix, np.tril(matrix))
+    return matrix, ts_order
 
+matrix, ts_order = create_matrix(fp, network)
 # Comverting to a sparse COO matrix, and saving the output in many arrays within a zarr v3 group
 out_path = Path(out_path)
 store = zarr.storage.LocalStore(root=out_path)
