@@ -21,15 +21,6 @@ from scipy import sparse
 from typing import Tuple
 import zarr
 
-pkg = sys.argv[1]
-gauge = sys.argv[2]
-out_path = sys.argv[3]
-
-# Useful for some debugging, not needed for algorithm
-# nexi = gpd.read_file(pkg, layer='nexus').set_index('id') 
-fp = gpd.read_file(pkg, layer='flowpaths').set_index('id')
-network = gpd.read_file(pkg, layer='network').set_index('id')
-
 def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> Tuple[np.ndarray, list[str]]:
     """
     Create a lower triangular adjacency matrix from flowpaths and network dataframes.
@@ -93,12 +84,10 @@ def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> Tuple[np.n
     assert np.allclose(matrix, np.tril(matrix))
     return matrix, ts_order
 
-matrix, ts_order = create_matrix(fp, network)
-
 def matrix_to_zarr(matrix: np.ndarray, ts_order: list[str], name: str, out_path: Path | str | None = None) -> None:
     """
     Convert a lower triangular adjacency matrix to a sparse COO matrix and save it in a zarr group.
-    
+
     Parameters
     ----------
     matrix : np.ndarray
@@ -151,9 +140,19 @@ def matrix_to_zarr(matrix: np.ndarray, ts_order: list[str], name: str, out_path:
     }
     print(f"{name} written to zarr at {out_path}")
 
-matrix_to_zarr(matrix, ts_order, gauge, out_path)
+if __name__ == "__main__":
+    pkg = sys.argv[1]
+    gauge = sys.argv[2]
+    out_path = sys.argv[3]
 
-# Visual verification
-# np.set_printoptions(threshold=np.inf, linewidth=np.inf)
-# print(fp)
-# print(matrix)
+    # Useful for some debugging, not needed for algorithm
+    # nexi = gpd.read_file(pkg, layer='nexus').set_index('id') 
+    fp = gpd.read_file(pkg, layer='flowpaths').set_index('id')
+    network = gpd.read_file(pkg, layer='network').set_index('id')
+    matrix, ts_order = create_matrix(fp, network)
+    matrix_to_zarr(matrix, ts_order, gauge, out_path)
+
+    # Visual verification
+    # np.set_printoptions(threshold=np.inf, linewidth=np.inf)
+    # print(fp)
+    # print(matrix)
