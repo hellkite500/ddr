@@ -15,7 +15,6 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import graphlib as gl
-import sys
 
 from scipy import sparse
 from typing import Tuple
@@ -48,6 +47,8 @@ def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> Tuple[np.n
         except:
             print("Terminal nex???", nex)
             continue
+        if isinstance(ds_wb, gpd.pd.Series):
+            ds_wb = ds_wb.iloc[0]
         # Add a node to the sorter, ds_wb is the node, id is its predesessor
         sorter.add(ds_wb, id)
 
@@ -68,6 +69,8 @@ def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> Tuple[np.n
         # Use the network to find wb -> wb topology
         try:
             ds_wb = network.loc[nex]['toid']
+            if isinstance(ds_wb, gpd.pd.Series):
+                ds_wb = ds_wb.iloc[0]
         except KeyError:
             print("Terminal nex???", nex)
             continue
@@ -141,16 +144,37 @@ def matrix_to_zarr(matrix: np.ndarray, ts_order: list[str], name: str, out_path:
     print(f"{name} written to zarr at {out_path}")
 
 if __name__ == "__main__":
-    pkg = sys.argv[1]
-    gauge = sys.argv[2]
-    out_path = sys.argv[3]
+    import argparse
+
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description="Create a lower triangular adjacency matrix from hydrofabric data."
+    )
+    parser.add_argument(
+        "pkg",
+        type=Path,
+        help="Path to the hydrofabric geopackage.",
+    )
+    parser.add_argument(
+        "name",
+        type=str,
+        help="Name of the matrix for saving in zarr group.",
+    )
+    parser.add_argument(
+        "path",
+        nargs="?",
+        type=Path,
+        default=None,
+        help="Path to save the zarr group. Defaults to current working directory with name appended.",
+    )
+    args = parser.parse_args()
 
     # Useful for some debugging, not needed for algorithm
     # nexi = gpd.read_file(pkg, layer='nexus').set_index('id') 
-    fp = gpd.read_file(pkg, layer='flowpaths').set_index('id')
-    network = gpd.read_file(pkg, layer='network').set_index('id')
+    fp = gpd.read_file(args.pkg, layer='flowpaths').set_index('id')
+    network = gpd.read_file(args.pkg, layer='network').set_index('id')
     matrix, ts_order = create_matrix(fp, network)
-    matrix_to_zarr(matrix, ts_order, gauge, out_path)
+    matrix_to_zarr(matrix, ts_order, args.name, args.path)
 
     # Visual verification
     # np.set_printoptions(threshold=np.inf, linewidth=np.inf)
