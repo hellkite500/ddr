@@ -20,7 +20,9 @@ from scipy import sparse
 from typing import Tuple
 import zarr
 
-def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> Tuple[np.ndarray, list[str]]:
+_tnx_counter = 0
+
+def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame, ghost=False) -> Tuple[np.ndarray, list[str]]:
     """
     Create a lower triangular adjacency matrix from flowpaths and network dataframes.
     
@@ -36,7 +38,7 @@ def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> Tuple[np.n
     np.ndarray
         Lower triangular adjacency matrix.
     """
-    
+    global _tnx_counter
     # Toposort for the win
     sorter = gl.TopologicalSorter()
 
@@ -44,9 +46,16 @@ def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> Tuple[np.n
         nex = fp.loc[id]['toid']
         try:
             ds_wb = network.loc[nex]['toid']
-        except:
+        except KeyError:
             print("Terminal nex???", nex)
-            continue
+            ds_wb = np.nan
+        if isinstance(ds_wb, float) and np.isnan(ds_wb):
+            if ghost:
+                ds_wb = f"ghost-{_tnx_counter}"
+                network.loc[nex, 'toid'] = ds_wb
+                network.loc[ds_wb, 'toid'] = np.nan
+                fp.loc[ds_wb, 'toid'] = np.nan
+                _tnx_counter += 1
         if isinstance(ds_wb, gpd.pd.Series):
             ds_wb = ds_wb.iloc[0]
         # Add a node to the sorter, ds_wb is the node, id is its predesessor
@@ -54,8 +63,11 @@ def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> Tuple[np.n
 
     # There are possibly more than one correct topological sort orders
     # Just grab one and go...
-    ts_order = list(sorter.static_order())
-
+    if ghost:
+        ts_order = list(sorter.static_order())
+    else:
+        ts_order = list(filter(lambda s: not (isinstance(s, float) and np.isnan(s)) ,sorter.static_order()))
+    
     # Reindex the flowpaths based on the topo order
     fp = fp.reindex(ts_order)
 
@@ -74,7 +86,8 @@ def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> Tuple[np.n
         except KeyError:
             print("Terminal nex???", nex)
             continue
-        # Find the inicies of the adajcent flowpaths
+        if isinstance(ds_wb, float) and np.isnan(ds_wb):
+            continue
         idx = fp.index.get_loc(wb)
         idxx = fp.index.get_loc(ds_wb)
         fp['matrix_idxx'] = idxx
@@ -85,6 +98,7 @@ def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> Tuple[np.n
 
     # Ensure, within tolerance, that this is a lower triangular matrix
     assert np.allclose(matrix, np.tril(matrix))
+    _tnx_counter = 0
     return matrix, ts_order
 
 def matrix_to_zarr(matrix: np.ndarray, ts_order: list[str], name: str, out_path: Path | str | None = None) -> None:
