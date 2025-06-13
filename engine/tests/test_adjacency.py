@@ -68,6 +68,49 @@ def complex_network(complex_flowpaths):
     network.index.name = 'id'
     
     return network
+
+class TestIndexMatrix:
+    """Test cases for the index_matrix function."""
+
+    @pytest.mark.parametrize("fp, network, ghost", [
+        ('simple_flowpaths', 'simple_network', True),
+        ('complex_flowpaths', 'complex_network', True),
+        ('simple_flowpaths', 'simple_network', False),
+        ('complex_flowpaths', 'complex_network', False)
+    ])
+    def test_index_matrix(self, fp, network, ghost, request):
+        """Test basic functionality of index_matrix."""
+        fp = request.getfixturevalue(fp)
+        network = request.getfixturevalue(network)
+        matrix, ts_order = create_matrix(fp, network, ghost)
+        
+        result = index_matrix(matrix, fp)
+        
+        # Check that the result is a GeoDataFrame
+        assert isinstance(result, gpd.GeoDataFrame)
+        # Check that the index matches the flowpaths
+        assert result.index.equals(fp.index)
+        # Check that the columns are named correctly
+        assert result.columns.equals(fp.index)
+        # Check that the data matches the matrix
+        assert np.array_equal(result.values, matrix)
+        # Check that the index names are present
+        assert result.index.name == 'to'
+        assert result.columns.name == 'from'
+        
+        # Check that terminal nodes are found and unique
+        if ghost:
+            t_rows = result.index[ result.index.str.startswith("ghost-") ]
+            t_cols = result.columns[ result.columns.str.startswith("ghost-") ]
+            assert len(t_rows) > 0
+            assert len(t_cols) > 0
+        else:
+            t_rows = result.index
+            t_cols = result.columns
+        assert len(t_rows) == len(t_cols)
+        assert len(t_rows.unique() == len(t_rows))
+        assert len(t_cols.unique() == len(t_cols))
+
 class TestAdjanceyMatrix:
     """Test cases for the create_matrix function."""
 

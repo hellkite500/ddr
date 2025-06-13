@@ -20,6 +20,38 @@ from scipy import sparse
 from typing import Tuple
 import zarr
 
+def index_matrix(matrix: np.ndarray, fp: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """
+    Create a 2D dataframe with ros and columns indexed by flowpath IDs
+    and values from the lower triangular adjacency matrix.
+    
+    Parameters
+    ----------
+    matrix : np.ndarray
+        Lower triangular adjacency matrix.
+    fp : gpd.GeoDataFrame
+        Flowpaths dataframe with 'toid' column indicating downstream nexus IDs.
+    
+    Returns
+    -------
+    gpd.GeoDataFrame
+        matrix dataframe with flowpath IDs as index and columns
+    """
+    # Create a new GeoDataFrame with the same index as the flowpaths
+    matrix_df = gpd.GeoDataFrame(
+        index=fp.index,
+        columns=fp.index,
+        data=np.zeros((len(fp), len(fp)), dtype=int)
+    )
+    matrix_df.rename_axis('to', inplace=True)
+    matrix_df.rename_axis('from', axis=1, inplace=True)
+    # Fill the dataframe with the values from the matrix
+    for i in range(len(fp)):
+        for j in range(len(fp)):
+            matrix_df.iloc[i, j] = matrix[i, j]
+
+    return matrix_df
+
 _tnx_counter = 0
 
 def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame, ghost=False) -> Tuple[np.ndarray, list[str]]:
