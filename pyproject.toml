@@ -41,7 +41,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
+tests = [
     "pytest==8.3.5",
     "pytest-cov==6.1.1",
     "ruff==0.11.13",
@@ -55,31 +55,16 @@ jupyter = [
   "jupyterlab==4.4.3",
 ]
 cpu = [
-  "torch==2.7.0",
-  "torchvision==0.22.0",
+  "torch==2.7.1",
 ]
 cu124 = [
-  "torch==2.7.0",
-  "torchvision==0.22.0",
+  "torch==2.7.1",
   "cupy-cuda12x==13.4.1",
-]
-
-[tool.uv]
-conflicts = [
-  [
-    { extra = "cpu" },
-    { extra = "cu124" },
-  ],
 ]
 
 [tool.uv.sources]
 torch = [
-  { index = "pytorch-cpu", extra = "cpu" },
-  { index = "pytorch-cu124", extra = "cu124" },
-]
-torchvision = [
-  { index = "pytorch-cpu", extra = "cpu" },
-  { index = "pytorch-cu124", extra = "cu124" },
+    { index = "pytorch-cpu", extra = "cpu" },
 ]
 
 [[tool.uv.index]]
