@@ -191,3 +191,72 @@ class TestAdjanceyMatrix:
         assert "Terminal nex???" in captured.out
 
 
+@pytest.mark.parametrize("fp, network, ghost", [
+    ('simple_flowpaths', 'simple_network', False),
+    ('complex_flowpaths', 'complex_network', True),
+])
+class TestMatrixToZarr:
+    """Test cases for the matrix_to_zarr function."""
+
+    def test_matrix_to_zarr_basic(self, fp, network, ghost, request):
+        """Test basic zarr export functionality."""
+        
+        fp = request.getfixturevalue(fp)
+        network = request.getfixturevalue(network)
+        matrix, ts_order = create_matrix(fp, network, ghost)
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            out_path = Path(temp_dir) / "test_adjacency.zarr"
+            matrix_to_zarr(matrix, ts_order, "test_matrix", out_path)
+            
+            # Check that zarr file was created
+            assert out_path.exists()
+            
+            # Check that zarr structure is correct
+            store = zarr.storage.LocalStore(root=out_path)
+            root = zarr.open_group(store=store)
+            assert "test_matrix" in root
+            
+            gauge_root = root["test_matrix"]
+            assert "indices_0" in gauge_root
+            assert "indices_1" in gauge_root
+            assert "values" in gauge_root
+            assert "order" in gauge_root
+
+    def test_matrix_to_zarr_default_path(self, fp, network, ghost, request):
+        """Test zarr export with default path."""
+
+        fp = request.getfixturevalue(fp)
+        network = request.getfixturevalue(network)
+        matrix, ts_order = create_matrix(fp, network, ghost)
+        
+        # Change to temp directory to avoid cluttering
+        with tempfile.TemporaryDirectory() as temp_dir:
+            original_cwd = Path.cwd()
+            try:
+                os.chdir(temp_dir)
+                matrix_to_zarr(matrix, ts_order, "test_matrix")
+                
+                expected_path = Path(temp_dir) / "test_matrix_adjacency.zarr"
+                assert expected_path.exists()
+            finally:
+                os.chdir(original_cwd)
+
+    def test_zarr_attributes(self, fp, network, ghost, request):
+        """Test that zarr attributes are set correctly."""
+
+        fp = request.getfixturevalue(fp)
+        network = request.getfixturevalue(network)
+        matrix, ts_order = create_matrix(fp, network, ghost)
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            out_path = Path(temp_dir) / "test_adjacency.zarr"
+            matrix_to_zarr(matrix, ts_order, "test_matrix", out_path)
+            
+            store = zarr.storage.LocalStore(root=out_path)
+            root = zarr.open_group(store=store)
+            gauge_root = root["test_matrix"]
+            
+            assert gauge_root.attrs["format"] == "COO"
+            assert "shape" in gauge_root.attrs
+            assert "data_types" in gauge_root.attrs
