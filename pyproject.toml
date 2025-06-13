@@ -138,6 +138,7 @@ lint.ignore = [
   ## Disable one in each pair of mutually incompatible rules
   # We don't want a blank line before a class docstring
   "D203",
+  "D205",  # 1 blank line required between summary line and description
   # We want docstrings to start immediately after the opening triple quote
   "D213",
 ]

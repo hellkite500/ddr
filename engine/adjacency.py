@@ -36,7 +36,6 @@ def index_matrix(matrix: np.ndarray, fp: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     gpd.GeoDataFrame
         matrix dataframe with flowpath IDs as index and columns
     """
-
     # Create a new GeoDataFrame with the same index as the flowpaths
     matrix_df = gpd.GeoDataFrame(
         index=fp.index, columns=fp.index, data=np.zeros((len(fp), len(fp)), dtype=int)
