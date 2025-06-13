@@ -44,6 +44,8 @@ def create_matrix(fp: gpd.GeoDataFrame, network: gpd.GeoDataFrame, ghost=False) 
 
     for id in fp.index:
         nex = fp.loc[id]['toid']
+        # if isinstance(nex, float) and np.isnan(nex):
+        #     continue
         try:
             ds_wb = network.loc[nex]['toid']
         except KeyError:
