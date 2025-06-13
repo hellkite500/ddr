@@ -10,6 +10,7 @@
 An introduction script for building a lower triangular adjancency matrix
 from a NextGen hydrofabric and writing a sparse zarr group
 """
+
 import graphlib as gl
 from pathlib import Path
 
